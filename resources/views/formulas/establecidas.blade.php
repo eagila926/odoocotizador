@@ -2,6 +2,28 @@
 @section('title','Fórmulas Establecidas | Ortomed')
 
 @section('content')
+
+@if ($errors->any())
+<div class="alert alert-danger">
+    <ul class="mb-0">
+      @foreach ($errors->all() as $error)
+        <li>{{ $error }}</li>
+      @endforeach
+    </ul>
+  </div>
+@endif
+
+<form id="exportar-json-odoo"
+      action="{{ route('fe.odoo.export') }}"
+      method="POST">
+  @csrf
+
+  @foreach ($rows as $r)
+    <input type="hidden" name="formula_ids[]" value="{{ $r->id }}">
+    <input type="hidden" name="quantities[{{ $r->id }}]" value="1">
+  @endforeach
+</form>
+
 <div class="card mb-3">
   <div class="card-body">
     <h4 class="mb-3">Fórmulas Establecidas</h4>
@@ -26,6 +48,12 @@
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h5 class="mb-0">Fórmulas seleccionadas</h5>
+      <button type="submit"
+              form="exportar-json-odoo"
+              class="btn btn-outline-primary btn-sm"
+              {{ $rows->isEmpty() ? 'disabled' : '' }}>
+        Descargar JSON de todas
+      </button>
       <form action="{{ route('fe.clear') }}" method="POST" onsubmit="return confirm('¿Eliminar todas?');">
         @csrf @method('DELETE')
         <button class="btn btn-danger btn-sm">Eliminar todas las fórmulas</button>
@@ -68,15 +96,29 @@
                   <i class="bi bi-file-earmark-excel"></i>
                 </a>
                 {{-- Editar (carga ítems en activo_temps y redirige a /formulas/nuevas) --}}
-              <a class="btn btn-primary btn-sm"
-                href="{{ route('formulas.editar.cargar', $r->id) }}"
-                title="Editar">
-                <i class="bi bi-pencil-square"></i>
-              </a>
-                {{-- Generar receta PDF --}}
-                <button type="button" class="btn btn-outline-secondary btn-sm btn-receta-pdf" data-id="{{ $r->id }}" data-codigo="{{ $r->codigo }}" title="Receta PDF">
-                  <i class="bi bi-file-earmark-pdf"></i>
-                </button>
+                <a class="btn btn-primary btn-sm"
+                  href="{{ route('formulas.editar.cargar', $r->id) }}"
+                  title="Editar">
+                  <i class="bi bi-pencil-square"></i>
+                </a>
+                <form action="{{ route('fe.odoo.export') }}"
+                        method="POST"
+                        class="d-inline">
+                    @csrf
+
+                    <input type="hidden" name="formula_ids[]" value="{{ $r->id }}">
+                    <input type="hidden" name="quantities[{{ $r->id }}]" value="1">
+
+                    <button type="submit"
+                            class="btn btn-outline-primary btn-sm"
+                            title="Descargar fórmula para Odoo">
+                      JSON
+                    </button>
+                  </form>
+                  {{-- Generar receta PDF --}}
+                  <button type="button" class="btn btn-outline-secondary btn-sm btn-receta-pdf" data-id="{{ $r->id }}" data-codigo="{{ $r->codigo }}" title="Receta PDF">
+                    <i class="bi bi-file-earmark-pdf"></i>
+                  </button>
 
               </td>
               <td>{{ number_format($r->precio_medico,2) }}</td>

@@ -134,6 +134,10 @@ Route::middleware('auth')->group(function () {
         // Formulas establecidas
         Route::prefix('formulas/establecidas')->name('fe.')->group(function () {
             Route::get('/',             [FormulasEstController::class,'index'])->name('index');
+            Route::post(
+                '/exportar-json',
+                [\App\Http\Controllers\OdooJsonExportController::class, 'store']
+            )->name('odoo.export');
             Route::get('/buscar',       [FormulasEstController::class,'buscar'])->name('buscar');
             Route::post('/add',         [FormulasEstController::class,'add'])->name('add');
             Route::post('/update-tipo', [FormulasEstController::class,'updateTipo'])->name('update');

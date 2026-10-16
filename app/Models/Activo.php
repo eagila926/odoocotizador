@@ -15,9 +15,17 @@ class Activo extends Model
 
 
     protected $fillable = [
-        'cod_odoo','nombre','valor_costo','factor','minimo',
-        'maximo','unidad','factor_venta','densidad'
-        ];
+        'cod_odoo',
+        'ref_interna',
+        'nombre',
+        'valor_costo',
+        'factor',
+        'minimo',
+        'maximo',
+        'unidad',
+        'factor_venta',
+        'densidad',
+    ];
 
     public function getRouteKeyName()
     {
