@@ -56,6 +56,18 @@
 @endpush
 
 @section('content')
+@php
+  $puedeExportarJson = auth()->check() && !in_array(auth()->user()->rol, ['Distribuidor', 'Laboratorio'], true);
+@endphp
+@if ($errors->any())
+  <div class="alert alert-danger"><ul class="mb-0">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
+@endif
+@if ($puedeExportarJson)
+  <form id="exportar-recientes-json" method="POST" action="{{ route('fe.odoo.export') }}">
+    @csrf
+    <input type="hidden" name="origin" value="recientes">
+  </form>
+@endif
 <div class="card recientes-scope">
   <div class="card-body">
     <h4 class="mb-3">Últimas Fórmulas</h4>
@@ -100,10 +112,19 @@
     </form>
 
 
+    @if ($puedeExportarJson)
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+      <button type="submit" form="exportar-recientes-json" id="btn-json-recientes" class="btn btn-outline-primary" disabled>Descargar JSON de seleccionadas (0)</button>
+      <span class="text-muted small">Marca las fórmulas de esta página que deseas exportar.</span>
+    </div>
+    @endif
     <div class="table-responsive">
       <table class="table align-middle table-hover">
         <thead>
           <tr>
+            @if ($puedeExportarJson)
+            <th><input type="checkbox" id="json-recientes-todas" class="form-check-input" aria-label="Seleccionar todas las fórmulas de esta página" {{ $formulas->isEmpty() ? 'disabled' : '' }}> <label for="json-recientes-todas">Todas</label></th>
+            @endif
             <th style="width:60px">#</th>
             <th>Código Fórmula</th>
             <th>Nombre Fórmula</th>
@@ -117,6 +138,12 @@
         <tbody>
           @forelse ($formulas as $i => $f)
             <tr>
+              @if ($puedeExportarJson)
+              <td>
+                <input type="checkbox" class="form-check-input json-reciente-seleccion" form="exportar-recientes-json" name="formula_ids[]" value="{{ $f->id }}" aria-label="Exportar {{ $f->codigo }}">
+                <input type="hidden" class="json-reciente-cantidad" form="exportar-recientes-json" name="quantities[{{ $f->id }}]" value="1" disabled>
+              </td>
+              @endif
               <td>{{ ($formulas->firstItem() ?? 1) + $i }}</td>
               <td>{{ $f->codigo }}</td>
               <td>{{ $f->nombre_etiqueta }}</td>
@@ -124,6 +151,15 @@
               <td class="text-end">{{ number_format((float)($f->precio_medico ?? 0), 2) }}</td>
               <td>{{ optional($f->created_at)->format('Y-m-d') }}</td>
               <td class="text-nowrap">
+                @if ($puedeExportarJson)
+                <form method="POST" action="{{ route('fe.odoo.export') }}" class="d-inline">
+                  @csrf
+                  <input type="hidden" name="origin" value="recientes">
+                  <input type="hidden" name="formula_ids[]" value="{{ $f->id }}">
+                  <input type="hidden" name="quantities[{{ $f->id }}]" value="1">
+                  <button type="submit" class="btn btn-outline-primary btn-sm me-1" title="Descargar JSON de {{ $f->codigo }}">JSON</button>
+                </form>
+                @endif
                 {{-- EDITAR --}}
                 <a href="{{ route('formulas.editar.cargar', $f->id) }}"
                   class="btn btn-outline-primary btn-icon me-1"
@@ -140,7 +176,7 @@
             </tr>
           @empty
             <tr>
-              <td colspan="7" class="text-center text-muted py-4">
+              <td colspan="{{ $puedeExportarJson ? 8 : 7 }}" class="text-center text-muted py-4">
                 No tienes fórmulas registradas aún.
               </td>
             </tr>
@@ -159,3 +195,29 @@
   </div>
 </div>
 @endsection 
+
+@push('scripts')
+<script>
+(function () {
+  const form = document.getElementById('exportar-recientes-json');
+  if (!form) return;
+  const button = document.getElementById('btn-json-recientes');
+  const all = document.getElementById('json-recientes-todas');
+  const checks = Array.from(document.querySelectorAll('.json-reciente-seleccion'));
+  function update() {
+    const count = checks.filter(check => check.checked).length;
+    checks.forEach(check => { check.closest('tr').querySelector('.json-reciente-cantidad').disabled = !check.checked; });
+    button.disabled = count === 0;
+    button.textContent = `Descargar JSON de seleccionadas (${count})`;
+    all.checked = checks.length > 0 && count === checks.length;
+    all.indeterminate = count > 0 && count < checks.length;
+  }
+  checks.forEach(check => check.addEventListener('change', update));
+  all.addEventListener('change', () => { checks.forEach(check => { check.checked = all.checked; }); update(); });
+  form.addEventListener('submit', event => {
+    if (!checks.some(check => check.checked)) { event.preventDefault(); alert('Marca al menos una fórmula para exportar.'); }
+  });
+  update();
+})();
+</script>
+@endpush

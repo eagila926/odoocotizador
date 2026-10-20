@@ -18,14 +18,20 @@ class OdooJsonExportController extends Controller
     {
         abort_if(!$request->user() || in_array($request->user()->rol, ['Distribuidor', 'Laboratorio'], true), 403, 'No tienes permiso para exportar JSON.');
         $data = $request->validate([
+            'origin' => ['sometimes', 'in:establecidas,recientes'],
             'formula_ids' => ['required', 'array', 'min:1', 'max:100'],
             'formula_ids.*' => ['required', 'integer', 'distinct'],
             'quantities' => ['required', 'array'],
             'quantities.*' => ['required', 'numeric', 'gt:0'],
         ]);
         $ids = array_map('intval', $data['formula_ids']);
-        $selected = array_map('intval', array_column($request->session()->get(FormulasEstController::SESSION_KEY, []), 'id'));
-        abort_if(array_diff($ids, $selected), 403);
+        if (($data['origin'] ?? 'establecidas') === 'recientes') {
+            // Recientes muestra únicamente las fórmulas del usuario autenticado.
+            abort_if(Formula::whereIn('id', $ids)->where('user_id', $request->user()->getAuthIdentifier())->count() !== count($ids), 403);
+        } else {
+            $selected = array_map('intval', array_column($request->session()->get(FormulasEstController::SESSION_KEY, []), 'id'));
+            abort_if(array_diff($ids, $selected), 403);
+        }
         if (!Schema::hasColumn('activos', 'ref_interna')) {
             throw ValidationException::withMessages(['odoo' => 'Primero agrega y completa activos.ref_interna.']);
         }
