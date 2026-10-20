@@ -2,6 +2,9 @@
 @section('title','Fórmulas Establecidas | Ortomed')
 
 @section('content')
+@php
+  $puedeExportarJson = auth()->check() && !in_array(auth()->user()->rol, ['Distribuidor', 'Laboratorio'], true);
+@endphp
 
 @if ($errors->any())
 <div class="alert alert-danger">
@@ -13,16 +16,15 @@
   </div>
 @endif
 
+@if ($puedeExportarJson)
 <form id="exportar-json-odoo"
       action="{{ route('fe.odoo.export') }}"
       method="POST">
   @csrf
 
-  @foreach ($rows as $r)
-    <input type="hidden" name="formula_ids[]" value="{{ $r->id }}">
-    <input type="hidden" name="quantities[{{ $r->id }}]" value="1">
-  @endforeach
+
 </form>
+@endif
 
 <div class="card mb-3">
   <div class="card-body">
@@ -48,12 +50,15 @@
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h5 class="mb-0">Fórmulas seleccionadas</h5>
-      <button type="submit"
+      @if ($puedeExportarJson)
+<button type="submit"
               form="exportar-json-odoo"
+              id="btn-exportar-json"
               class="btn btn-outline-primary btn-sm"
-              {{ $rows->isEmpty() ? 'disabled' : '' }}>
-        Descargar JSON de todas
+              disabled>
+        Descargar JSON de seleccionadas
       </button>
+@endif
       <form action="{{ route('fe.clear') }}" method="POST" onsubmit="return confirm('¿Eliminar todas?');">
         @csrf @method('DELETE')
         <button class="btn btn-danger btn-sm">Eliminar todas las fórmulas</button>
@@ -64,6 +69,12 @@
       <table class="table align-middle">
         <thead>
           <tr>
+            @if ($puedeExportarJson)
+            <th scope="col">
+              <input type="checkbox" id="json-seleccionar-todas" class="form-check-input" aria-label="Seleccionar todas las fórmulas para JSON" {{ $rows->isEmpty() ? 'disabled' : '' }}>
+              <label for="json-seleccionar-todas">Todas</label>
+            </th>
+            @endif
             <th>Nombre Fórmula</th>
             <th style="width:260px">Tipo Etiqueta</th>
             <th>Acciones</th>
@@ -76,6 +87,14 @@
         <tbody>
           @forelse($rows as $r)
             <tr data-id="{{ $r->id }}">
+              @if ($puedeExportarJson)
+              <td>
+                <input type="checkbox" class="form-check-input json-seleccion"
+                       form="exportar-json-odoo" name="formula_ids[]" value="{{ $r->id }}"
+                       aria-label="Exportar {{ $r->codigo }}">
+                <input type="hidden" form="exportar-json-odoo" name="quantities[{{ $r->id }}]" value="1" class="json-cantidad-lote" disabled>
+              </td>
+              @endif
               <td>
                 <div class="fw-semibold">{{ $r->codigo }}</div>
                 <small class="text-muted">{{ $r->nombre_etiqueta }}</small>
@@ -101,7 +120,8 @@
                   title="Editar">
                   <i class="bi bi-pencil-square"></i>
                 </a>
-                <form action="{{ route('fe.odoo.export') }}"
+                @if ($puedeExportarJson)
+<form action="{{ route('fe.odoo.export') }}"
                         method="POST"
                         class="d-inline">
                     @csrf
@@ -115,6 +135,7 @@
                       JSON
                     </button>
                   </form>
+@endif
                   {{-- Generar receta PDF --}}
                   <button type="button" class="btn btn-outline-secondary btn-sm btn-receta-pdf" data-id="{{ $r->id }}" data-codigo="{{ $r->codigo }}" title="Receta PDF">
                     <i class="bi bi-file-earmark-pdf"></i>
@@ -132,7 +153,7 @@
               </td>
             </tr>
           @empty
-            <tr><td colspan="7" class="text-center text-muted">Sin registros.</td></tr>
+            <tr><td colspan="{{ $puedeExportarJson ? 8 : 7 }}" class="text-center text-muted">Sin registros.</td></tr>
           @endforelse
         </tbody>
       </table>
@@ -145,6 +166,37 @@
 
 <script>
 (function(){
+  const exportForm = document.getElementById('exportar-json-odoo');
+  const exportButton = document.getElementById('btn-exportar-json');
+  const selectAll = document.getElementById('json-seleccionar-todas');
+  const checks = Array.from(document.querySelectorAll('.json-seleccion'));
+  function actualizarSeleccionJson() {
+    const selectedCount = checks.filter(check => check.checked).length;
+    checks.forEach(check => {
+      check.closest('tr').querySelector('.json-cantidad-lote').disabled = !check.checked;
+    });
+    if (exportButton) {
+      exportButton.disabled = selectedCount === 0;
+      exportButton.textContent = `Descargar JSON de seleccionadas (${selectedCount})`;
+    }
+    if (selectAll) {
+      selectAll.checked = checks.length > 0 && selectedCount === checks.length;
+      selectAll.indeterminate = selectedCount > 0 && selectedCount < checks.length;
+    }
+  }
+  checks.forEach(check => check.addEventListener('change', actualizarSeleccionJson));
+  if (selectAll) selectAll.addEventListener('change', () => {
+    checks.forEach(check => { check.checked = selectAll.checked; });
+    actualizarSeleccionJson();
+  });
+  if (exportForm) exportForm.addEventListener('submit', event => {
+    if (!checks.some(check => check.checked)) {
+      event.preventDefault();
+      alert('Marca al menos una fórmula para exportar.');
+    }
+  });
+  actualizarSeleccionJson();
+
   const $buscador = document.getElementById('buscador');
   const $sugs     = document.getElementById('sugerencias');
   const $idHidden = document.getElementById('formula_id');

@@ -16,6 +16,7 @@ class OdooJsonExportController extends Controller
 {
     public function store(Request $request, OdooFormulaPayload $builder)
     {
+        abort_if(!$request->user() || in_array($request->user()->rol, ['Distribuidor', 'Laboratorio'], true), 403, 'No tienes permiso para exportar JSON.');
         $data = $request->validate([
             'formula_ids' => ['required', 'array', 'min:1', 'max:100'],
             'formula_ids.*' => ['required', 'integer', 'distinct'],
@@ -72,9 +73,17 @@ class OdooJsonExportController extends Controller
         } catch (InvalidArgumentException $e) {
             throw ValidationException::withMessages(['odoo' => $e->getMessage()]);
         }
+        $document = json_decode($export->payload, true, 512, JSON_THROW_ON_ERROR);
+        $formulas = $document['formulas'] ?? [$document];
+        if (count($formulas) === 1) {
+            $name = Str::slug((string) ($formulas[0]['product']['name'] ?? ''), '_');
+            $filename = substr($name ?: 'formula', 0, 100).'.json';
+        } else {
+            $filename = 'exp_'.count($formulas).'_odoo.json';
+        }
         return response($export->payload, 200, [
             'Content-Type' => 'application/json; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="ortomed-'.$export->reference.'.json"',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
             'Cache-Control' => 'private, no-store',
         ]);
     }
